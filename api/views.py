@@ -4,8 +4,7 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated, IsAuthenticatedOrReadOnly
 from rest_framework_simplejwt.tokens import RefreshToken
 from .serializers import (
-    VerificationCodeSerializer,
-    UserSerializer, 
+    VerificationCodeSerializer, 
     RegisterSerializer, 
     LoginSerializer, 
     ItemSerializer, 
@@ -14,7 +13,7 @@ from .serializers import (
     ResendVerificationSerializer
 )
 from .models import User, Item, Order, Profile
-from .permissions import IsAdminUser, IsSeller, IsCustomer
+from .permissions import IsSeller, IsCustomer
 import random
 
 
