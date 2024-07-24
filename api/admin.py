@@ -2,14 +2,14 @@ from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from .models import User, Item, Order, Profile
 
-# Customize the admin interface for the User model if necessary
 class UserAdmin(BaseUserAdmin):
     fieldsets = BaseUserAdmin.fieldsets + (
-        (None, {'fields': ('is_seller', 'full_name')}),
+        (None, {'fields': ('full_name', 'is_seller', 'is_verified')}),
     )
     add_fieldsets = BaseUserAdmin.add_fieldsets + (
-        (None, {'fields': ('is_seller', 'full_name')}),
+        (None, {'fields': ('full_name', 'is_seller', 'is_verified')}),
     )
+
 
 admin.site.register(User, UserAdmin)
 admin.site.register(Item)

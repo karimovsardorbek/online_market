@@ -1,8 +1,17 @@
+import random
+
+
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated, IsAuthenticatedOrReadOnly
 from rest_framework_simplejwt.tokens import RefreshToken
+
+
+from .models import User, Item, Order, Profile
+from .permissions import IsSeller, IsCustomer
+
+
 from .serializers import (
     VerificationCodeSerializer, 
     RegisterSerializer, 
@@ -12,20 +21,20 @@ from .serializers import (
     ProfileSerializer,
     ResendVerificationSerializer
 )
-from .models import User, Item, Order, Profile
-from .permissions import IsSeller, IsCustomer
-import random
 
 
+#random verification code
 def generate_verification_code():
     return str(random.randint(100000, 999999))
 
 
+#sending email
 def send_email_verification_code(email, code):
     print(f'Sending email to: {email}')
     print(f'Verification code: {code}')
 
 
+#register 
 @api_view(['POST'])
 def register_view(request):
     if request.method == 'POST':
@@ -39,6 +48,8 @@ def register_view(request):
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+
+#verify email
 @api_view(['POST'])
 def verify_user_view(request):
     if request.method == 'POST':
@@ -58,7 +69,7 @@ def verify_user_view(request):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-
+#resend verification code
 @api_view(['POST'])
 def resend_verification_code_view(request):
     serializer = ResendVerificationSerializer(data=request.data)
@@ -78,7 +89,7 @@ def resend_verification_code_view(request):
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-
+#login
 @api_view(['POST'])
 def login_view(request):
     if request.method == 'POST':
@@ -97,6 +108,7 @@ def login_view(request):
         return Response({'error': 'Invalid Credentials'}, status=status.HTTP_401_UNAUTHORIZED)
 
 
+#getting and creating items
 @api_view(['GET', 'POST'])
 @permission_classes([IsAuthenticatedOrReadOnly])
 def item_list_create_view(request):
@@ -114,6 +126,8 @@ def item_list_create_view(request):
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+
+#deleting and updating items by their id
 @api_view(['GET', 'PUT', 'PATCH', 'DELETE'])
 @permission_classes([IsAuthenticatedOrReadOnly])
 def item_detail_view(request, pk):
@@ -142,6 +156,7 @@ def item_detail_view(request, pk):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
+#getting and creating orders
 @api_view(['GET', 'POST'])
 @permission_classes([IsAuthenticated, IsCustomer])
 def order_list_create_view(request):
@@ -158,6 +173,7 @@ def order_list_create_view(request):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
+#updating and deleting orders
 @api_view(['GET', 'PUT', 'PATCH', 'DELETE'])
 @permission_classes([IsAuthenticated, IsCustomer])
 def order_detail_view(request, pk):
@@ -182,6 +198,7 @@ def order_detail_view(request, pk):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
+#getting and creating profiles
 @api_view(['GET', 'POST', 'PUT', 'PATCH', 'DELETE'])
 @permission_classes([IsAuthenticated])
 def profile_list_create_view(request):

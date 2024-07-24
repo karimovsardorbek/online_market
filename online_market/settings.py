@@ -42,7 +42,7 @@ INSTALLED_APPS = [
     'rest_framework',
     'drf_yasg',
 
-    ##apps
+    #apps
     'api',
 ]
 
@@ -56,6 +56,7 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
+#rest framework
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework_simplejwt.authentication.JWTAuthentication',
@@ -65,14 +66,15 @@ REST_FRAMEWORK = {
     ),
 }
 
+#simple jwt
 SIMPLE_JWT = {
     'AUTH_HEADER_TYPES': ('Bearer',),
-    'ACCESS_TOKEN_LIFETIME': timedelta(days=1),
+    'ACCESS_TOKEN_LIFETIME': timedelta(days=7),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=7), 
 }
 
 
-
+#auth user
 AUTH_USER_MODEL = 'api.User'
 
 ROOT_URLCONF = 'online_market.urls'

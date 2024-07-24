@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from .models import User
-from rest_framework_simplejwt.tokens import RefreshToken
 from .models import Profile, Order,Item
+
 
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
@@ -13,11 +13,14 @@ class UserSerializer(serializers.ModelSerializer):
         user = User.objects.create_user(**validated_data)
         return user
 
+
 class VerificationCodeSerializer(serializers.Serializer):
     code = serializers.CharField(max_length=6)
 
+
 class ResendVerificationSerializer(serializers.Serializer):
     email = serializers.EmailField()
+
 
 class RegisterSerializer(serializers.ModelSerializer):
     class Meta:
@@ -29,9 +32,11 @@ class RegisterSerializer(serializers.ModelSerializer):
         user = User.objects.create_user(**validated_data)
         return user
 
+
 class LoginSerializer(serializers.Serializer):
     email = serializers.EmailField()
     password = serializers.CharField(write_only=True)
+
 
 class ProfileSerializer(serializers.ModelSerializer):
     class Meta:
@@ -45,6 +50,7 @@ class ProfileSerializer(serializers.ModelSerializer):
         profile = Profile.objects.create(user=user, **validated_data)
         return profile
     
+
 class OrderSerializer(serializers.ModelSerializer):
     items = serializers.PrimaryKeyRelatedField(many=True, queryset=Item.objects.all())
 
