@@ -1,16 +1,23 @@
 import random
 
-
-from rest_framework import status
+from rest_framework.views import APIView
+from rest_framework import status, generics, mixins
 from rest_framework.response import Response
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated, IsAuthenticatedOrReadOnly
 from rest_framework_simplejwt.tokens import RefreshToken
-
-
-from .models import User, Item, Order, Profile
 from .permissions import IsSeller, IsCustomer
 
+from .models import(
+    User,
+    Item, 
+    Order, 
+    Profile,
+    Cart, 
+    CartItem,
+    OrderItem,
+    Favorite
+)
 
 from .serializers import (
     VerificationCodeSerializer, 
@@ -19,8 +26,12 @@ from .serializers import (
     ItemSerializer, 
     OrderSerializer, 
     ProfileSerializer,
-    ResendVerificationSerializer
+    ResendVerificationSerializer,
+    CartSerializer, 
+    CartItemSerializer,
+    FavoriteSerializer,
 )
+
 
 
 #random verification code
@@ -34,25 +45,19 @@ def send_email_verification_code(email, code):
     print(f'Verification code: {code}')
 
 
-#register 
-@api_view(['POST'])
-def register_view(request):
-    if request.method == 'POST':
-        serializer = RegisterSerializer(data=request.data)
-        if serializer.is_valid():
-            user = serializer.save()
-            verification_code = generate_verification_code()
-            user.verification_code = verification_code
-            user.save()
-            send_email_verification_code(user.email, verification_code)
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+class RegisterView(generics.CreateAPIView):
+    serializer_class = RegisterSerializer
+
+    def perform_create(self, serializer):
+        user = serializer.save()
+        verification_code = generate_verification_code()
+        user.verification_code = verification_code
+        user.save()
+        send_email_verification_code(user.email, verification_code)
 
 
-#verify email
-@api_view(['POST'])
-def verify_user_view(request):
-    if request.method == 'POST':
+class VerifyUserView(APIView):
+    def post(self, request):
         serializer = VerificationCodeSerializer(data=request.data)
         if serializer.is_valid():
             code = serializer.validated_data['code']
@@ -65,34 +70,31 @@ def verify_user_view(request):
                 user.save()
                 return Response({'detail': 'User verified successfully.'}, status=status.HTTP_200_OK)
             except User.DoesNotExist:
-                return Response({'deta  il': 'Invalid verification code.'}, status=status.HTTP_400_BAD_REQUEST)
+                return Response({'detail': 'Invalid verification code.'}, status=status.HTTP_400_BAD_REQUEST)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-#resend verification code
-@api_view(['POST'])
-def resend_verification_code_view(request):
-    serializer = ResendVerificationSerializer(data=request.data)
-    if serializer.is_valid():
-        email = serializer.validated_data['email']
-        try:
-            user = User.objects.get(email=email)
-            if user.is_verified:
-                return Response({'detail': 'User is already verified.'}, status=status.HTTP_400_BAD_REQUEST)
-            verification_code = generate_verification_code()
-            user.verification_code = verification_code
-            user.save()
-            send_email_verification_code(user.email, verification_code)
-            return Response({'detail': 'Verification code resent successfully.'}, status=status.HTTP_200_OK)
-        except User.DoesNotExist:
-            return Response({'detail': 'User with this email does not exist.'}, status=status.HTTP_400_BAD_REQUEST)
-    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+class ResendVerificationCodeView(APIView):
+    def post(self, request):
+        serializer = ResendVerificationSerializer(data=request.data)
+        if serializer.is_valid():
+            email = serializer.validated_data['email']
+            try:
+                user = User.objects.get(email=email)
+                if user.is_verified:
+                    return Response({'detail': 'User is already verified.'}, status=status.HTTP_400_BAD_REQUEST)
+                verification_code = generate_verification_code()
+                user.verification_code = verification_code
+                user.save()
+                send_email_verification_code(user.email, verification_code)
+                return Response({'detail': 'Verification code resent successfully.'}, status=status.HTTP_200_OK)
+            except User.DoesNotExist:
+                return Response({'detail': 'User with this email does not exist.'}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-#login
-@api_view(['POST'])
-def login_view(request):
-    if request.method == 'POST':
+class LoginView(APIView):
+    def post(self, request):
         serializer = LoginSerializer(data=request.data)
         if serializer.is_valid(raise_exception=True):
             user = User.objects.filter(email=serializer.validated_data['email']).first()
@@ -108,119 +110,164 @@ def login_view(request):
         return Response({'error': 'Invalid Credentials'}, status=status.HTTP_401_UNAUTHORIZED)
 
 
-#getting and creating items
-@api_view(['GET', 'POST'])
-@permission_classes([IsAuthenticatedOrReadOnly])
-def item_list_create_view(request):
-    if request.method == 'GET':
-        items = Item.objects.all()
-        serializer = ItemSerializer(items, many=True)
-        return Response(serializer.data)
-    
-    elif request.method == 'POST':
+class ItemListCreateView(generics.ListCreateAPIView):
+    queryset = Item.objects.all()
+    serializer_class = ItemSerializer
+    permission_classes = [IsAuthenticatedOrReadOnly]
+
+    def post(self, request, *args, **kwargs):
         if not IsSeller().has_permission(request, None):
             return Response({'detail': 'Not authorized'}, status=status.HTTP_403_FORBIDDEN)
-        serializer = ItemSerializer(data=request.data)
-        if serializer.is_valid():
-            serializer.save(seller=request.user)
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        return super().post(request, *args, **kwargs)
+
+    def perform_create(self, serializer):
+        serializer.save(seller=self.request.user)
 
 
-#deleting and updating items by their id
-@api_view(['GET', 'PUT', 'PATCH', 'DELETE'])
-@permission_classes([IsAuthenticatedOrReadOnly])
-def item_detail_view(request, pk):
-    try:
-        item = Item.objects.get(pk=pk)
-    except Item.DoesNotExist:
-        return Response({'error': 'Item not found.'}, status=status.HTTP_404_NOT_FOUND)
+class ItemDetailView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = Item.objects.all()
+    serializer_class = ItemSerializer
+    permission_classes = [IsAuthenticatedOrReadOnly]
 
-    if request.method == 'GET':
-        serializer = ItemSerializer(item)
-        return Response(serializer.data)
-    
-    elif request.method in ['PUT', 'PATCH']:
+    def put(self, request, *args, **kwargs):
+        item = self.get_object()
         if not IsSeller().has_permission(request, item):
             return Response({'detail': 'Not authorized'}, status=status.HTTP_403_FORBIDDEN)
-        serializer = ItemSerializer(item, data=request.data, partial=(request.method == 'PATCH'))
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-    
-    elif request.method == 'DELETE':
+        return super().put(request, *args, **kwargs)
+
+    def patch(self, request, *args, **kwargs):
+        item = self.get_object()
         if not IsSeller().has_permission(request, item):
             return Response({'detail': 'Not authorized'}, status=status.HTTP_403_FORBIDDEN)
-        item.delete()
-        return Response(status=status.HTTP_204_NO_CONTENT)
+        return super().patch(request, *args, **kwargs)
+
+    def delete(self, request, *args, **kwargs):
+        item = self.get_object()
+        if not IsSeller().has_permission(request, item):
+            return Response({'detail': 'Not authorized'}, status=status.HTTP_403_FORBIDDEN)
+        return super().delete(request, *args, **kwargs)
 
 
-#getting and creating orders
-@api_view(['GET', 'POST'])
-@permission_classes([IsAuthenticated, IsCustomer])
-def order_list_create_view(request):
-    if request.method == 'GET':
-        orders = Order.objects.filter(customer=request.user)
-        serializer = OrderSerializer(orders, many=True)
-        return Response(serializer.data)
-    
-    elif request.method == 'POST':
-        serializer = OrderSerializer(data=request.data)
-        if serializer.is_valid():
-            serializer.save(customer=request.user)
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+class OrderListCreateView(generics.ListCreateAPIView):
+    serializer_class = OrderSerializer
+    permission_classes = [IsAuthenticated, IsCustomer]
+
+    def get_queryset(self):
+        return Order.objects.filter(customer=self.request.user)
+
+    def perform_create(self, serializer):
+        serializer.save(customer=self.request.user)
 
 
-#updating and deleting orders
-@api_view(['GET', 'PUT', 'PATCH', 'DELETE'])
-@permission_classes([IsAuthenticated, IsCustomer])
-def order_detail_view(request, pk):
-    try:
-        order = Order.objects.get(pk=pk, customer=request.user)
-    except Order.DoesNotExist:
-        return Response({'error': 'Order not found.'}, status=status.HTTP_404_NOT_FOUND)
+class OrderDetailView(generics.RetrieveUpdateDestroyAPIView):
+    serializer_class = OrderSerializer
+    permission_classes = [IsAuthenticated, IsCustomer]
 
-    if request.method == 'GET':
-        serializer = OrderSerializer(order)
-        return Response(serializer.data)
-    
-    elif request.method in ['PUT', 'PATCH']:
-        serializer = OrderSerializer(order, data=request.data, partial=(request.method == 'PATCH'))
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-    
-    elif request.method == 'DELETE':
-        order.delete()
-        return Response(status=status.HTTP_204_NO_CONTENT)
+    def get_queryset(self):
+        return Order.objects.filter(customer=self.request.user)
 
 
-#getting and creating profiles
-@api_view(['GET', 'POST', 'PUT', 'PATCH', 'DELETE'])
-@permission_classes([IsAuthenticated])
-def profile_list_create_view(request):
-    if request.method == 'GET':
-        profiles = Profile.objects.all()
-        serializer = ProfileSerializer(profiles, many=True)
-        return Response(serializer.data)
-    
-    elif request.method == 'POST':
-        serializer = ProfileSerializer(data=request.data)
-        if serializer.is_valid():
-            serializer.save(user=request.user)
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-    
-    elif request.method in ['PUT', 'PATCH', 'DELETE']:
-        profile = Profile.objects.get(pk=request.data.get('id'))
-        if request.method == 'DELETE':
-            profile.delete()
-            return Response(status=status.HTTP_204_NO_CONTENT)
-        serializer = ProfileSerializer(profile, data=request.data, partial=(request.method == 'PATCH'))
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+class ProfileListCreateView(generics.ListCreateAPIView):
+    queryset = Profile.objects.all()
+    serializer_class = ProfileSerializer
+    permission_classes = [IsAuthenticated]
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
+
+
+# class ProfileDetailView(generics.RetrieveUpdateDestroyAPIView):
+#     queryset = Profile.objects.all()
+#     serializer_class = ProfileSerializer
+#     permission_classes = [IsAuthenticated]
+
+
+class CartDetailView(generics.RetrieveAPIView):
+    serializer_class = CartSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_object(self):
+        cart, created = Cart.objects.get_or_create(user=self.request.user)
+        return cart
+
+
+class AddToCartView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        cart, created = Cart.objects.get_or_create(user=request.user)
+        item = Item.objects.get(pk=request.data['item_id'])
+        quantity = request.data.get('quantity', 1)
+        cart_item, created = CartItem.objects.get_or_create(cart=cart, item=item)
+        if not created:
+            cart_item.quantity += quantity
+        else:
+            cart_item.quantity = quantity
+        cart_item.save()
+        return Response({'detail': 'Item added to cart'}, status=status.HTTP_200_OK)
+
+
+class RemoveFromCartView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        cart = Cart.objects.get(user=request.user)
+        item = Item.objects.get(pk=request.data['item_id'])
+        cart_item = CartItem.objects.get(cart=cart, item=item)
+        cart_item.delete()
+        return Response({'detail': 'Item removed from cart'}, status=status.HTTP_200_OK)
+
+
+class CreateOrderFromCartView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        cart = Cart.objects.get(user=request.user)
+        if not cart.items.exists():
+            return Response({'detail': 'Cart is empty'}, status=status.HTTP_400_BAD_REQUEST)
+
+        order = Order.objects.create(customer=request.user)
+        for cart_item in cart.items.all():
+            OrderItem.objects.create(order=order, item=cart_item.item, quantity=cart_item.quantity)
+        cart.items.all().delete()
+        return Response({'detail': 'Order created'}, status=status.HTTP_201_CREATED)
+
+
+
+class MarkFavoriteView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, item_id):
+        try:
+            item = Item.objects.get(id=item_id)
+        except Item.DoesNotExist:
+            return Response({'detail': 'Item not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        favorite, created = Favorite.objects.get_or_create(user=request.user, item=item)
+        if created:
+            return Response({'detail': 'Item marked as favorite'}, status=status.HTTP_201_CREATED)
+        return Response({'detail': 'Item is already marked as favorite'}, status=status.HTTP_200_OK)
+
+
+class UnmarkFavoriteView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def delete(self, request, item_id):
+        try:
+            item = Item.objects.get(id=item_id)
+        except Item.DoesNotExist:
+            return Response({'detail': 'Item not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        favorite = Favorite.objects.filter(user=request.user, item=item).first()
+        if favorite:
+            favorite.delete()
+            return Response({'detail': 'Item unmarked as favorite'}, status=status.HTTP_204_NO_CONTENT)
+        return Response({'detail': 'Item was not marked as favorite'}, status=status.HTTP_404_NOT_FOUND)
+
+
+class ListFavoritesView(generics.ListAPIView):
+    serializer_class = FavoriteSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return Favorite.objects.filter(user=self.request.user)

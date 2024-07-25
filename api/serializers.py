@@ -1,8 +1,19 @@
 from rest_framework import serializers
-from .models import User
-from .models import Profile, Order,Item
 
 
+from .models import(
+    Profile, 
+    Order,
+    Item, 
+    OrderItem,
+    CartItem,
+    Cart,
+    User,
+    Favorite,
+)
+
+
+#user serializer
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
@@ -14,14 +25,17 @@ class UserSerializer(serializers.ModelSerializer):
         return user
 
 
+#verification serializer
 class VerificationCodeSerializer(serializers.Serializer):
     code = serializers.CharField(max_length=6)
 
 
+#resending verification code serializer
 class ResendVerificationSerializer(serializers.Serializer):
     email = serializers.EmailField()
 
 
+#register serializer
 class RegisterSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
@@ -33,11 +47,13 @@ class RegisterSerializer(serializers.ModelSerializer):
         return user
 
 
+#login serializer
 class LoginSerializer(serializers.Serializer):
     email = serializers.EmailField()
     password = serializers.CharField(write_only=True)
 
 
+#profile serializer
 class ProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = Profile
@@ -51,6 +67,7 @@ class ProfileSerializer(serializers.ModelSerializer):
         return profile
     
 
+#order serializers
 class OrderSerializer(serializers.ModelSerializer):
     items = serializers.PrimaryKeyRelatedField(many=True, queryset=Item.objects.all())
 
@@ -68,6 +85,13 @@ class OrderSerializer(serializers.ModelSerializer):
         return order
 
 
+class OrderItemSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = OrderItem
+        fields = ['id', 'order', 'item', 'quantity']
+
+
+#item serializers
 class ItemSerializer(serializers.ModelSerializer):
     class Meta:
         model = Item
@@ -79,3 +103,25 @@ class ItemSerializer(serializers.ModelSerializer):
         seller = request.user
         item = Item.objects.create(seller=seller, **validated_data)
         return item
+    
+
+#cart serializer
+class CartItemSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CartItem
+        fields = ['id', 'item', 'quantity']
+
+class CartSerializer(serializers.ModelSerializer):
+    items = CartItemSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = Cart
+        fields = ['id', 'user', 'items']
+
+
+#favourie items
+class FavoriteSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Favorite
+        fields = ['id', 'user', 'item', 'created_at']
+        read_only_fields = ['user', 'created_at']
