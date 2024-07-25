@@ -1,13 +1,13 @@
 import random
 
-from rest_framework.views import APIView
-from rest_framework import status,  mixins, viewsets
+from rest_framework import status, viewsets
 from rest_framework.response import Response
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated, IsAuthenticatedOrReadOnly, AllowAny
 from .permissions import IsSeller, IsCustomer
 from django.core.exceptions import PermissionDenied
-
+from rest_framework.filters import SearchFilter
+from django.core.mail import send_mail
 
 from .models import(
     User,
@@ -17,20 +17,22 @@ from .models import(
     Cart, 
     CartItem,
     OrderItem,
-    Favorite
+    Favorite,
+    Review,
+    SupportRequest,
 )
 
 from .serializers import (
     VerificationCodeSerializer, 
     RegisterSerializer, 
-    LoginSerializer, 
     ItemSerializer, 
     OrderSerializer, 
     ProfileSerializer,
     ResendVerificationSerializer,
     CartSerializer, 
-    CartItemSerializer,
     FavoriteSerializer,
+    ReviewSerializer,
+    SupportRequestSerializer,
 )
 
 
@@ -60,7 +62,7 @@ class UserViewSet(viewsets.ModelViewSet):
             user.verification_code = verification_code
             user.save()
             send_email_verification_code(user.email, verification_code)
-            return Response({'detail': 'User registered successfully. Please verify your account now'}, status=status.HTTP_201_CREATED)
+            return Response({'detail': 'User registered successfully. Please verify your account'}, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     @action(detail=False, methods=['post'], url_path='verify')
@@ -103,6 +105,8 @@ class ItemViewSet(viewsets.ModelViewSet):
     queryset = Item.objects.all()
     serializer_class = ItemSerializer
     permission_classes = [IsAuthenticatedOrReadOnly]
+    filter_backends = [SearchFilter]
+    search_fields = ['name']
 
     def perform_create(self, serializer):
         if not IsSeller().has_permission(self.request, None):
@@ -121,9 +125,11 @@ class ItemViewSet(viewsets.ModelViewSet):
             raise PermissionDenied('Not authorized')
         instance.delete()
 
+
 class OrderViewSet(viewsets.ModelViewSet):
     serializer_class = OrderSerializer
-    permission_classes = [IsAuthenticated, IsCustomer]
+    permission_classes = [IsAuthenticated]
+    queryset = Order.objects.all()
 
     def get_queryset(self):
         return Order.objects.filter(customer=self.request.user)
@@ -211,3 +217,39 @@ class FavoriteViewSet(viewsets.ModelViewSet):
             favorite.delete()
             return Response({'detail': 'Item unmarked as favorite'}, status=status.HTTP_204_NO_CONTENT)
         return Response({'detail': 'Item was not marked as favorite'}, status=status.HTTP_404_NOT_FOUND)
+
+
+
+class ReviewViewSet(viewsets.ModelViewSet):
+    queryset = Review.objects.all()
+    serializer_class = ReviewSerializer
+    permission_classes = [IsAuthenticatedOrReadOnly]
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
+
+
+class SupportRequestViewSet(viewsets.ModelViewSet):
+    serializer_class = SupportRequestSerializer
+    permission_classes = [IsAuthenticatedOrReadOnly]
+    queryset = SupportRequest.objects.all()
+
+    def get_queryset(self):
+        user = self.request.user
+        if user.is_authenticated:
+            return SupportRequest.objects.filter(user=user)
+        return SupportRequest.objects.none()
+
+    
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user, email=self.request.user.email)
+    
+    def perform_update(self, serializer):
+        if serializer.instance.user != self.request.user:
+            return Response({'detail': 'Not authorized to update this support request.'}, status=status.HTTP_403_FORBIDDEN)
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        if instance.user != self.request.user:
+            return Response({'detail': 'Not authorized to delete this support request.'}, status=status.HTTP_403_FORBIDDEN)
+        instance.delete()

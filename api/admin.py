@@ -9,6 +9,7 @@ from .models import(
     CartItem,
     OrderItem,
     Favorite,
+    Review,
 )
 
 
@@ -29,3 +30,4 @@ admin.site.register(Profile)
 admin.site.register(Cart)
 admin.site.register(CartItem)
 admin.site.register(Favorite)
+admin.site.register(Review)

@@ -22,17 +22,12 @@ class Item(models.Model):
 
 class Order(models.Model):
     customer = models.ForeignKey(User, on_delete=models.CASCADE)
-    items = models.ManyToManyField(Item)
     created_at = models.DateTimeField(auto_now_add=True)
-
 
 class OrderItem(models.Model):
     order = models.ForeignKey(Order, related_name='order_items', on_delete=models.CASCADE)
     item = models.ForeignKey(Item, on_delete=models.CASCADE)
-    quantity = models.PositiveIntegerField(default=1)
-
-    def __str__(self):
-        return f"{self.quantity} x {self.item.name}"
+    quantity = models.PositiveIntegerField()
 
 
 class Profile(models.Model):
@@ -66,3 +61,31 @@ class Favorite(models.Model):
 
     def __str__(self):
         return f"{self.user} - {self.item.name}"
+    
+
+class Review(models.Model):
+    RATING_CHOICES = [(i, str(i)) for i in range(1, 11)]  # Choices from 1 to 10
+    
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    item = models.ForeignKey(Item, on_delete=models.CASCADE)
+    rating = models.IntegerField(choices=RATING_CHOICES)
+    comment = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+
+
+    def __str__(self):
+        return f'Review by {self.user} on {self.item}'
+    
+
+class SupportRequest(models.Model):
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True)
+    email = models.EmailField()
+    subject = models.CharField(max_length=255)
+    message = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    resolved = models.BooleanField(default=False)
+
+    def __str__(self):
+        return f"{self.subject} - {self.email}"
+    

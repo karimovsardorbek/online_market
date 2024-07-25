@@ -10,6 +10,8 @@ from .models import(
     Cart,
     User,
     Favorite,
+    Review,
+    SupportRequest,
 )
 
 
@@ -67,28 +69,21 @@ class ProfileSerializer(serializers.ModelSerializer):
         return profile
     
 
-#order serializers
+class OrderItemSerializer(serializers.ModelSerializer):
+    item = serializers.PrimaryKeyRelatedField(queryset=Item.objects.all())
+    class Meta:
+        model = OrderItem
+        fields = ['id', 'item', 'quantity']
+        read_only_fields = ['id', 'order']
+
+
 class OrderSerializer(serializers.ModelSerializer):
-    items = serializers.PrimaryKeyRelatedField(many=True, queryset=Item.objects.all())
+    order_items = OrderItemSerializer(many=True, read_only=True)  # Use the related name here
 
     class Meta:
         model = Order
-        fields = ['id', 'customer', 'items', 'created_at']
+        fields = ['id', 'customer', 'order_items', 'created_at']
         read_only_fields = ['id', 'customer', 'created_at']
-
-    def create(self, validated_data):
-        request = self.context.get('request')
-        customer = request.user
-        items = validated_data.pop('items')
-        order = Order.objects.create(customer=customer, **validated_data)
-        order.items.set(items)
-        return order
-
-
-class OrderItemSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = OrderItem
-        fields = ['id', 'order', 'item', 'quantity']
 
 
 #item serializers
@@ -125,3 +120,16 @@ class FavoriteSerializer(serializers.ModelSerializer):
         model = Favorite
         fields = ['id', 'user', 'item', 'created_at']
         read_only_fields = ['user', 'created_at']
+
+
+class ReviewSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Review
+        fields = ['id', 'user', 'item', 'rating', 'comment', 'created_at']
+
+
+
+class SupportRequestSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SupportRequest
+        fields = ['id', 'user', 'subject', 'message', 'created_at', 'resolved']
