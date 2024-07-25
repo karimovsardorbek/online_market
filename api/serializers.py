@@ -106,6 +106,7 @@ class CartItemSerializer(serializers.ModelSerializer):
         model = CartItem
         fields = ['id', 'item', 'quantity']
 
+
 class CartSerializer(serializers.ModelSerializer):
     items = CartItemSerializer(many=True, read_only=True)
 
@@ -126,7 +127,6 @@ class ReviewSerializer(serializers.ModelSerializer):
     class Meta:
         model = Review
         fields = ['id', 'user', 'item', 'rating', 'comment', 'created_at']
-
 
 
 class SupportRequestSerializer(serializers.ModelSerializer):

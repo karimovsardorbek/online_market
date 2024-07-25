@@ -219,7 +219,6 @@ class FavoriteViewSet(viewsets.ModelViewSet):
         return Response({'detail': 'Item was not marked as favorite'}, status=status.HTTP_404_NOT_FOUND)
 
 
-
 class ReviewViewSet(viewsets.ModelViewSet):
     queryset = Review.objects.all()
     serializer_class = ReviewSerializer
@@ -239,7 +238,6 @@ class SupportRequestViewSet(viewsets.ModelViewSet):
         if user.is_authenticated:
             return SupportRequest.objects.filter(user=user)
         return SupportRequest.objects.none()
-
     
     def perform_create(self, serializer):
         serializer.save(user=self.request.user, email=self.request.user.email)
